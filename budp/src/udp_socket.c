@@ -1,7 +1,7 @@
-#include "budp/sockets.h"
+#include "budp/udp_socket.h"
 
-#include "debug.h"
-#include "platform.h"
+#include "./debug.h"
+#include "./platform.h"
 
 #if PLATFORM == PLATFORM_WINDOWS
 #include <winsock2.h>
@@ -88,7 +88,7 @@ bool open_socket(udp_socket* socket_out, bool nonblocking,
         }
     }
 #endif
-    socket_out->socket = handle;
+    *socket_out = handle;
     return true;
 }
 
@@ -98,11 +98,11 @@ bool close_socket(udp_socket* socket) {
         return false;
     }
 #if PLATFORM == PLATFORM_MAC || PLATFORM == PLATFORM_UNIX
-    close(socket->socket);
+    close(*socket);
 #elif PLATFORM == PLATFORM_WINDOWS
     closesocket(socket->socket);
 #endif
-    socket->socket = 0;
+    *socket = 0;
     return true;
 }
 
@@ -111,7 +111,7 @@ unsigned int make_address(unsigned char a, unsigned char b, unsigned char c,
     return (a << 24) | (b << 16) | (c << 8) | d;
 }
 
-bool send_packet(udp_socket* socket, unsigned char* data, int data_size,
+bool send_packet(udp_socket socket, unsigned char* data, int data_size,
                  unsigned int address, unsigned short port) {
     if (socket == 0) {
         BUNNY_DEBUG_PRINT("socket is null\n");
@@ -132,8 +132,8 @@ bool send_packet(udp_socket* socket, unsigned char* data, int data_size,
     addr.sin_port = htons(port);
 
     int sent_bytes =
-        sendto(socket->socket, (const char*)data, data_size, 0,
-               (struct sockaddr*)&addr, sizeof(struct sockaddr_in));
+        sendto(socket, (const char*)data, data_size, 0, (struct sockaddr*)&addr,
+               sizeof(struct sockaddr_in));
 
     if (sent_bytes != data_size) {
         BUNNY_DEBUG_PRINT("failed to send packet\n");
@@ -146,7 +146,7 @@ bool send_packet(udp_socket* socket, unsigned char* data, int data_size,
 typedef int socklen_t;
 #endif
 
-int receive_packet(udp_socket* socket, unsigned char* buffer, int buffer_size,
+int receive_packet(udp_socket socket, unsigned char* buffer, int buffer_size,
                    unsigned int* address, unsigned short* port) {
     if (socket == 0) {
         BUNNY_DEBUG_PRINT("socket is null\n");
@@ -163,7 +163,7 @@ int receive_packet(udp_socket* socket, unsigned char* buffer, int buffer_size,
     struct sockaddr_in from;
     socklen_t fromLength = sizeof(from);
 
-    int bytes = recvfrom(socket->socket, (char*)buffer, buffer_size, 0,
+    int bytes = recvfrom(socket, (char*)buffer, buffer_size, 0,
                          (struct sockaddr*)&from, &fromLength);
 
     if (bytes <= 0) {
